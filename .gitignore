@@ -1,0 +1,8 @@
+# Nunca subir datos personales
+*.db
+*.xlsx
+*.xls
+*.csv
+*.gfam
+migracion*.json
+privado/
