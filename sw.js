@@ -1,10 +1,10 @@
 // Service worker: funciona sin conexión y recibe archivos compartidos (Android).
 // Sube VERSION cada vez que publiques cambios para que los móviles se actualicen.
-const VERSION = 'gf-1.1.0';
+const VERSION = 'gf-1.2.0';
 const ARCHIVOS = [
   './', 'index.html', 'manifest.webmanifest', 'css/estilos.css',
-  'js/app.js', 'js/ui.js', 'js/vistas.js', 'js/ajustes.js', 'js/almacen.js', 'js/servicio.js', 'js/sync.js', 'js/ia.js',
-  'js/core/xlsx.js', 'js/core/banco.js', 'js/core/clasificador.js', 'js/core/calculos.js', 'js/core/categorias.js', 'js/core/cripto.js', 'js/core/util.js', 'js/core/presentacion.js',
+  'js/app.js', 'js/tema.js', 'js/ui.js', 'js/vistas.js', 'js/ajustes.js', 'js/almacen.js', 'js/servicio.js', 'js/sync.js', 'js/ia.js',
+  'js/core/xlsx.js', 'js/core/banco.js', 'js/core/clasificador.js', 'js/core/calculos.js', 'js/core/categorias.js', 'js/core/cripto.js', 'js/core/util.js', 'js/core/presentacion.js', 'js/core/grupos.js',
   'iconos/icono.svg', 'iconos/icono-192.png', 'iconos/icono-180.png',
 ];
 

@@ -4,7 +4,8 @@ import { leerArchivoTabla } from './core/xlsx.js';
 import { parsearExtracto, claveDuplicado } from './core/banco.js';
 import { clasificar, aprender, reglaBase } from './core/clasificador.js';
 import { clasificarConIA, lotes, MODELO_POR_DEFECTO } from './ia.js';
-import { norm, uid } from './core/util.js';
+import { norm, uid, redondear } from './core/util.js';
+import { sugerirGrupo } from './core/grupos.js';
 
 const ID_AJUSTES = 'ajuste_general';
 
@@ -16,6 +17,7 @@ export class Servicio {
   get reglas() { return this.repo.lista('regla'); }
   get movs() { return this.repo.lista('mov'); }
   get tarjetas() { return this.repo.lista('tarjeta'); }
+  get grupos() { return this.repo.lista('grupo'); }
   get ajustes() {
     return { autoConfirmar: true, iaActiva: false, iaAutoConfirmar: false, modelo: MODELO_POR_DEFECTO, apiKey: '', contexto: '', ...(this.repo.obtener('ajuste', ID_AJUSTES) || {}) };
   }
@@ -45,12 +47,12 @@ export class Servicio {
   }
 
   // ---------- Importar extracto ----------
-  async analizarArchivo(nombre, buffer) {
+  async analizarArchivo(nombre, buffer, { tarjeta = null } = {}) {
     const filas = await leerArchivoTabla(nombre, buffer);
-    const ex = parsearExtracto(filas);
+    const ex = parsearExtracto(filas, { tarjeta });
     const existentes = new Set(this.movs.map(m => m.h));
     const nuevos = ex.movs.filter(m => !existentes.has(m.h));
-    return { ...ex, nombre, nuevos, duplicados: ex.movs.length - nuevos.length };
+    return { ...ex, nombre, buffer, tarjetaExtracto: tarjeta, nuevos, duplicados: ex.movs.length - nuevos.length };
   }
 
   async confirmarImportacion(analisis) {
@@ -63,14 +65,32 @@ export class Servicio {
       await this.repo.guardar('tarjeta', nuevasT.map(t => ({ id: 't_' + t, nombre: `Tarjeta …${t}`, ambito: '' })), { silencioso: true });
       Object.assign(ctx.tarjetas, Object.fromEntries(this.tarjetas.map(t => [t.id.replace(/^t_/, ''), t])));
     }
+    // Extracto de tarjeta: a partir de esta fecha, la liquidación mensual de la tarjeta es solo un pago (traspaso)
+    if (analisis.tarjetaExtracto) {
+      const id = 't_' + analisis.tarjetaExtracto;
+      const t = this.repo.obtener('tarjeta', id) || { id, nombre: `Tarjeta …${analisis.tarjetaExtracto}`, ambito: '' };
+      const desde = analisis.desde && (!t.detalleDesde || analisis.desde < t.detalleDesde) ? analisis.desde : t.detalleDesde;
+      if (desde !== t.detalleDesde) {
+        await this.repo.guardar('tarjeta', { ...t, detalleDesde: desde }, { silencioso: true });
+        ctx.tarjetas[analisis.tarjetaExtracto] = { ...t, detalleDesde: desde };
+        await this.reclasificarLiquidaciones(ctx);
+      }
+    }
     const movs = analisis.nuevos.map(m => {
       const c = clasificar(m, ctx);
+      // Compras con la tarjeta de empresa sin regla: se sugieren como gasto de trabajo, pero se revisan
+      if (m.extractoTarjeta && !c.cat && m.importe < 0 && ctx.tarjetas[m.tarjeta]?.ambito === 'euroimmun') {
+        Object.assign(c, { tipo: 'gasto', cat: 'eur-gastos', ambito: 'euroimmun', motivo: 'Tarjeta de empresa: ¿trabajo o personal?', fiable: false, origen: 'auto' });
+      }
       return {
         id: uid('m_'), ...m, fila: undefined,
         tipo: c.tipo, cat: c.cat, ambito: c.ambito, origen: c.origen, reglaId: c.reglaId, motivo: c.motivo,
         estado: c.fiable && aj.autoConfirmar ? 'ok' : 'pendiente', impId, creado: Date.now(),
       };
     });
+    // Sugerir grupo (evento o artículo) a los que encajan
+    const grupos = this.grupos;
+    for (const m of movs) { const g = sugerirGrupo(m, grupos, this.movs); if (g) { m.grupoSugerido = g.id; } }
     await this.repo.guardar('mov', movs, { silencioso: true });
     await this.repo.guardar('imp', {
       id: impId, archivo: analisis.nombre, fecha: Date.now(), cuenta: analisis.cuenta, desde: analisis.desde, hasta: analisis.hasta,
@@ -89,6 +109,8 @@ export class Servicio {
       const m = this.repo.obtener('mov', id);
       if (!m) continue;
       const n = { ...m, ...cambios, estado: 'ok' };
+      if (!('grupo' in cambios) && m.grupoSugerido && this.repo.obtener('grupo', m.grupoSugerido)) n.grupo = m.grupoSugerido;
+      n.grupoSugerido = null;
       if (n.tipo === 'traspaso') n.cat = null;
       if ('cat' in cambios || 'tipo' in cambios) n.origen = 'manual';
       if (aprenderRegla && (n.cat || n.tipo === 'traspaso')) {
@@ -167,6 +189,61 @@ export class Servicio {
       onProgreso?.(hechos, pendientes.length);
     }
     return { n: hechos, total: pendientes.length, reglas: reglasIA };
+  }
+
+  // Recalcula las liquidaciones de tarjeta tras activar su extracto detallado
+  async reclasificarLiquidaciones(ctx = this.ctx()) {
+    const cambios = [];
+    for (const m of this.movs) {
+      if (!/^TARJ\.VISA \*+\d{4}/.test(norm(m.desc))) continue;
+      const c = clasificar(m, ctx);
+      if (c.tipo === 'traspaso' && m.tipo !== 'traspaso') cambios.push({ ...m, tipo: 'traspaso', cat: null, ambito: 'familia', origen: 'auto', motivo: c.motivo, estado: 'ok' });
+    }
+    if (cambios.length) await this.repo.guardar('mov', cambios, { silencioso: true });
+    return cambios.length;
+  }
+
+  // ---------- Grupos ----------
+  async crearGrupo({ clase, nombre, personas = null, precioCompra = null }, movIds = []) {
+    const g = { id: uid('g_'), clase, nombre: nombre.trim(), personas: Number(personas) || null, precioCompra: Number(precioCompra) || null, cerrado: false, creado: Date.now() };
+    await this.repo.guardar('grupo', g, { silencioso: !!movIds.length });
+    if (movIds.length) await this.asignarGrupo(movIds, g.id);
+    return g;
+  }
+  async editarGrupo(id, cambios) { const g = this.repo.obtener('grupo', id); await this.repo.guardar('grupo', { ...g, ...cambios }); }
+  async asignarGrupo(movIds, grupoId) {
+    const arr = (Array.isArray(movIds) ? movIds : [movIds]).map(id => this.repo.obtener('mov', id)).filter(Boolean);
+    await this.repo.guardar('mov', arr.map(m => ({ ...m, grupo: grupoId || null, grupoSugerido: null })));
+  }
+  async borrarGrupo(id) {
+    const movs = this.movs.filter(m => m.grupo === id || m.grupoSugerido === id).map(m => ({ ...m, grupo: m.grupo === id ? null : m.grupo, grupoSugerido: null }));
+    if (movs.length) await this.repo.guardar('mov', movs, { silencioso: true });
+    await this.repo.borrar('grupo', id);
+  }
+  async asignarNota(movId, mes) { await this.editarMov(movId, { notaMes: mes }); }
+
+  // ---------- Dividir un movimiento (p. ej. liquidación de tarjeta con parte personal) ----------
+  // partes: [{ importe (con signo), tipo, cat, ambito, nota }]; la suma debe ser el importe original
+  async dividirMov(id, partes) {
+    const m = this.repo.obtener('mov', id);
+    const suma = redondear(partes.reduce((a, p) => a + Number(p.importe), 0));
+    if (Math.abs(suma - m.importe) > 0.009) throw new Error(`Las partes suman ${suma} y el movimiento es de ${m.importe}`);
+    await this.deshacerDivision(id, { silencioso: true });
+    const hijos = partes.map((p, i) => ({
+      id: uid('m_'), padre: id, fecha: m.fecha, fechaValor: m.fechaValor, tipoOp: m.tipoOp, desc: m.desc, tarjeta: m.tarjeta, cuenta: m.cuenta,
+      nombre: p.nombre || null, importe: redondear(Number(p.importe)), tipo: p.tipo, cat: p.tipo === 'traspaso' ? null : p.cat || null,
+      ambito: p.ambito || 'familia', nota: p.nota || `Parte ${i + 1} de ${partes.length}`, estado: 'ok', origen: 'manual',
+      h: `${m.h}#${i}`, creado: Date.now(),
+    }));
+    await this.repo.guardar('mov', hijos, { silencioso: true });
+    await this.repo.guardar('mov', { ...m, dividido: true, estado: 'ok' });
+    return hijos;
+  }
+  async deshacerDivision(id, { silencioso = false } = {}) {
+    const hijos = this.movs.filter(x => x.padre === id).map(x => x.id);
+    if (hijos.length) await this.repo.borrar('mov', hijos);
+    const m = this.repo.obtener('mov', id);
+    if (m?.dividido) await this.repo.guardar('mov', { ...m, dividido: false }, { silencioso });
   }
 
   // ---------- Migración desde la app antigua ----------

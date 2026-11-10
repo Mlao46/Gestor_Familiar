@@ -12,7 +12,7 @@ import { vistaAjustes } from './ajustes.js';
 import { mesesConDatos } from './core/calculos.js';
 import { hoyIso, mesDe } from './core/util.js';
 
-export const VERSION = '1.1.0';
+export const VERSION = '1.2.0';
 const repo = new Repositorio();
 const servicio = new Servicio(repo);
 const sync = new Sync(repo);
@@ -339,11 +339,12 @@ async function abrirCompartido() {
 
 // ---------- Navegación ----------
 const SECCIONES = [
-  ['resumen', 'Inicio', 'casa'], ['movs', 'Movimientos', 'lista'], ['buzon', 'Revisar', 'check'], ['evolucion', 'Evolución', 'evolucion'], ['ajustes', 'Ajustes', 'ajustes'],
+  ['resumen', 'Inicio', 'casa'], ['movs', 'Movimientos', 'lista'], ['buzon', 'Revisar', 'check'], ['grupos', 'Grupos', 'grupos'], ['evolucion', 'Evolución', 'evolucion'], ['ajustes', 'Ajustes', 'ajustes'],
 ];
 const ICONOS_NAV = {
   casa: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7M6 10v10h12V10"/></svg>',
-  lista: ICONOS.movs, check: ICONOS.buzon, evolucion: ICONOS.evolucion, ajustes: ICONOS.ajustes,
+  lista: ICONOS.movs, check: ICONOS.buzon,
+  grupos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>', evolucion: ICONOS.evolucion, ajustes: ICONOS.ajustes,
   mas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h.01M12 12h.01M19 12h.01"/></svg>',
 };
 
@@ -363,13 +364,13 @@ function render() {
     marco = $('#marco');
   }
   const insignia = n => n ? `<b class="insignia">${n > 99 ? '99+' : n}</b>` : '';
-  const activa = id => id === nombre || (nombre === 'importar' && id === 'resumen' && false);
+  const activa = id => id === nombre || (nombre === 'grupo' && id === 'grupos');
   marco.querySelector('.lateral').innerHTML = `
     <div class="marca"><img src="iconos/icono.svg" alt="">Gestor Familiar</div>
     <a class="boton oscuro importar" href="#/importar">${ICONOS.subir} Importar extracto</a>
     ${SECCIONES.map(([id, t, ic]) => `<a class="item ${activa(id) ? 'activa' : ''}" href="#/${id}" ${activa(id) ? 'aria-current="page"' : ''}>${ICONOS_NAV[ic]}<span>${t}</span>${id === 'buzon' ? insignia(pendientes) : ''}</a>`).join('')}
     <div class="pie">Datos cifrados de extremo a extremo${sync.conectado && sync.familia ? ' · sincronizado' : ' · solo en este dispositivo'}</div>`;
-  const enMas = ['mas', 'evolucion', 'ajustes', 'importar'].includes(nombre);
+  const enMas = ['mas', 'evolucion', 'ajustes', 'importar', 'grupos', 'grupo'].includes(nombre);
   marco.querySelector('.barra').innerHTML = `
     <a href="#/resumen" class="${nombre === 'resumen' ? 'activa' : ''}">${ICONOS_NAV.casa}<span>Inicio</span></a>
     <a href="#/movs" class="${nombre === 'movs' ? 'activa' : ''}">${ICONOS_NAV.lista}<span>Movimientos</span></a>
@@ -387,7 +388,8 @@ function render() {
   if (ultimaRuta !== location.hash) scrollTo(0, 0); else scrollTo(0, scroll);
   ultimaRuta = location.hash;
 }
-addEventListener('hashchange', render);
+// Al cambiar de pantalla se cierran las hojas abiertas
+addEventListener('hashchange', () => { document.querySelectorAll('.velo').forEach(v => v.remove()); render(); });
 
 // Borrado total de este dispositivo (desde Ajustes)
 export async function olvidarDispositivo() {

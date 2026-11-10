@@ -90,6 +90,15 @@ Después, en la app: **Ajustes › Copias de seguridad y datos › Importar dato
 | Reembolso | Te devuelven dinero de un gasto (Bizum de amigos por un regalo, devolución de una compra) | Resta del gasto de su categoría |
 | Traspaso | Mover dinero entre tus cuentas | No cuenta |
 
+**Grupos** (menú Grupos): juntan movimientos que van juntos sin tocar las categorías ni el presupuesto.
+- *Eventos*: una cena, un cumpleaños o un viaje. Muestra lo que pagaste, lo que te devolvieron por Bizum y el coste real. La app sugiere sola a qué evento va cada Bizum que te llega.
+- *Wallapop*: cada artículo junta su compra (aunque sea en varias cuotas) y su venta, y muestra el beneficio y los días que tardó en venderse.
+- *Euroimmun*: una nota de gastos por mes. El reembolso que llega al mes siguiente se asigna a la nota anterior. Si una nota no se va a cobrar entera, se puede dar por cerrada.
+
+**Extracto de la tarjeta de empresa**: en Importar, elige «Extracto de tarjeta». Cada compra entra por separado y, desde esa fecha, la liquidación mensual de la tarjeta en la cuenta cuenta como un simple pago, para no contar nada dos veces. Sin extracto, la liquidación se puede **dividir** a mano en su ficha (parte de trabajo y parte personal).
+
+**Apariencia**: Ajustes › Apariencia (oscuro, claro o como el sistema), por dispositivo.
+
 Los **ámbitos** separan dinero que no es de casa. *Euroimmun* muestra lo que has gastado con la tarjeta de empresa y lo que te han devuelto, es decir, lo que te deben. *Wallapop* muestra ventas menos compras. Ninguno de los dos entra en el balance familiar.
 
 Las **tarjetas** se detectan solas por la columna *Referencia* del Excel. Ponles nombre en Ajustes y podrás ver el gasto de cada una aunque salgan de la misma cuenta.
@@ -119,6 +128,8 @@ js/core/        Lógica pura, sin navegador: se puede reutilizar en un servidor 
   banco.js        convierte el extracto en movimientos (IberCaja y detección genérica de columnas)
   clasificador.js reglas base, reglas aprendidas y aprendizaje
   calculos.js     totales, desglose, evolución, cuentas aparte
+  grupos.js       eventos, artículos de Wallapop y notas de Euroimmun
+  presentacion.js nombres legibles, iconos y colores
   categorias.js   categorías por defecto (ids estables)
   cripto.js       cifrado, bóveda, PIN y huella (PRF)
 js/almacen.js   IndexedDB cifrado + repositorio en memoria

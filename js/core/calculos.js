@@ -4,7 +4,7 @@ import { mesDe, mesAnterior, redondear } from './util.js';
 // filtros: { mes?: 'YYYY-MM', ambito?: 'familia'|'wallapop'|'euroimmun'|'todo', tarjeta?: 'todas'|'sin'|ref4, desde?, hasta? }
 export function filtrar(movs, f = {}) {
   return movs.filter(m => {
-    if (m.borrado) return false;
+    if (m.borrado || m.dividido) return false;
     if (f.mes && mesDe(m.fecha) !== f.mes) return false;
     if (f.desde && m.fecha < f.desde) return false;
     if (f.hasta && m.fecha > f.hasta) return false;
@@ -89,7 +89,7 @@ export function ingresosPorCategoria(movs, cats) {
 }
 
 export function mesesConDatos(movs) {
-  return [...new Set(movs.filter(m => !m.borrado).map(m => mesDe(m.fecha)))].sort().reverse();
+  return [...new Set(movs.filter(m => !m.borrado && !m.dividido).map(m => mesDe(m.fecha)))].sort().reverse();
 }
 
 // Evolución de los últimos n meses hasta 'mesFin' (incluido)
@@ -128,7 +128,7 @@ export function mediasPorCategoria(movs, mesFin, n = 6) {
 
 // Cuenta aparte: lo gastado y lo recuperado en un ámbito (Euroimmun: lo que te deben; Wallapop: beneficio)
 export function cuentaAparte(movs, ambito) {
-  const lista = movs.filter(m => !m.borrado && m.ambito === ambito && m.tipo !== 'traspaso');
+  const lista = movs.filter(m => !m.borrado && !m.dividido && m.ambito === ambito && m.tipo !== 'traspaso');
   let salidas = 0, entradas = 0;
   for (const m of lista) { if (m.importe < 0) salidas += -m.importe; else entradas += m.importe; }
   return { salidas: redondear(salidas), entradas: redondear(entradas), saldo: redondear(entradas - salidas), n: lista.length };

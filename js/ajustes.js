@@ -19,6 +19,7 @@ export function vistaAjustes(app, c, params) {
   <div class="pagina estrecha">
   <header class="cab"><h1>Ajustes</h1><div class="acciones"><button class="boton mini" data-acc="bloquear">${ICONOS.candado} Bloquear</button></div></header>
   <div class="ajustes-grid">
+    ${sec('apariencia', 'Apariencia', htmlApariencia())}
     ${sec('tarjetas', 'Tarjetas', htmlTarjetas(app))}
     ${sec('categorias', 'Categorías y presupuestos', htmlCategorias(app))}
     ${sec('reglas', `Reglas de clasificación <span class="tenue">${s.reglas.length}</span>`, htmlReglas(app))}
@@ -31,7 +32,19 @@ export function vistaAjustes(app, c, params) {
   </div>`;
   $$('details.seccion', c).forEach(d => d.ontoggle = () => { d.open ? abiertas.add(d.dataset.id) : abiertas.delete(d.dataset.id); });
   $('[data-acc=bloquear]', c).onclick = () => app.bloquear();
+  enlazarApariencia(app, c);
   enlazarTarjetas(app, c); enlazarCategorias(app, c); enlazarReglas(app, c); enlazarIA(app, c); enlazarFamilia(app, c); pintarSeguridad(app, c); enlazarDatos(app, c);
+}
+
+// ---------- Apariencia ----------
+function htmlApariencia() {
+  const t = window.temaActual ? window.temaActual() : 'oscuro';
+  const op = (v, txt) => `<button type="button" data-tema="${v}" class="${t === v ? 'activo' : ''}">${txt}</button>`;
+  return `<p class="suave">Solo afecta a este dispositivo.</p>
+  <div class="segmentado" role="group" aria-label="Modo de color">${op('oscuro', 'Oscuro')}${op('claro', 'Claro')}${op('auto', 'Como el sistema')}</div>`;
+}
+function enlazarApariencia(app, c) {
+  $$('[data-tema]', c).forEach(b => b.onclick = () => { window.cambiarTema?.(b.dataset.tema); app.render(); });
 }
 
 // ---------- Tarjetas ----------
@@ -41,7 +54,7 @@ function htmlTarjetas(app) {
   for (const m of app.servicio.movs) if (m.tarjeta) usos[m.tarjeta] = (usos[m.tarjeta] || 0) + 1;
   return `<p class="suave">Ponle nombre a cada tarjeta para filtrar los gastos de cada uno, aunque salgan de la misma cuenta. Si una tarjeta es del trabajo, asígnale el ámbito y sus gastos irán aparte.</p>
   <table class="tabla"><thead><tr><th>Tarjeta</th><th>Nombre</th><th>Ámbito</th></tr></thead><tbody>
-  ${ts.map(t => `<tr data-t="${esc(t.id)}"><td class="num">…${esc(t.id.slice(2))}<br><span class="tenue">${usos[t.id.slice(2)] || 0} mov.</span></td>
+  ${ts.map(t => `<tr data-t="${esc(t.id)}"><td class="num">…${esc(t.id.slice(2))}<br><span class="tenue">${usos[t.id.slice(2)] || 0} mov.${t.detalleDesde ? `<br>extracto desde ${new Date(t.detalleDesde).toLocaleDateString('es-ES')}` : ''}</span></td>
     <td><input type="text" name="nombre" value="${esc(t.nombre)}" aria-label="Nombre de la tarjeta"></td>
     <td><select name="ambito" aria-label="Ámbito"><option value="">Familia</option>${Object.entries(AMBITOS).filter(([k]) => k !== 'familia').map(([k, v]) => `<option value="${k}" ${t.ambito === k ? 'selected' : ''}>${v}</option>`).join('')}</select></td></tr>`).join('')}
   </tbody></table>

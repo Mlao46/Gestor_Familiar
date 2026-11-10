@@ -119,6 +119,12 @@ export function reglaBase(m) {
 export function clasificar(m, ctx) {
   const texto = textoBusqueda(m);
   const tarjeta = m.tarjeta ? ctx.tarjetas?.[m.tarjeta] : null;
+  // Liquidación de una tarjeta cuyo detalle se importa aparte: es solo el pago de la tarjeta
+  const liq = norm(m.desc).match(/^TARJ\.VISA \*+(\d{4})/);
+  const tLiq = liq && ctx.tarjetas?.[liq[1]];
+  if (tLiq?.detalleDesde && m.fecha > tLiq.detalleDesde) {
+    return { tipo: 'traspaso', cat: null, ambito: 'familia', origen: 'auto', reglaId: null, fiable: true, motivo: `Pago de la tarjeta …${liq[1]} (su detalle se importa aparte)` };
+  }
   // Orden: reglas tuyas > reglas base seguras > aprendidas > IA > reglas base dudosas
   const base = reglaBase(m);
   const baseSegura = base && (base.tipo === 'traspaso' || base.cat) ? base : null;
@@ -149,7 +155,8 @@ export function clasificar(m, ctx) {
   }
   if (res.tipo === 'traspaso') res.cat = null;
   // Ámbito: regla > categoría > tarjeta > familia
-  res.ambito = res.ambito || AMBITO_DE_CATEGORIA[res.cat] || tarjeta?.ambito || 'familia';
+  // Si ya hay categoría, manda ella (una compra personal con la tarjeta de empresa es de Familia)
+  res.ambito = res.ambito || AMBITO_DE_CATEGORIA[res.cat] || (res.cat ? 'familia' : tarjeta?.ambito) || 'familia';
   if (res.tipo !== 'traspaso' && !res.cat) res.fiable = false;
   return res;
 }

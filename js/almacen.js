@@ -47,7 +47,7 @@ export async function borrarTodoLocal() {
 }
 
 // Tipos de registro: mov (movimiento), cat (categoría), regla, tarjeta, ajuste, imp (importación)
-export const TIPOS_REG = ['mov', 'cat', 'regla', 'tarjeta', 'ajuste', 'imp'];
+export const TIPOS_REG = ['mov', 'cat', 'regla', 'tarjeta', 'ajuste', 'imp', 'grupo'];
 
 export class Repositorio {
   constructor() {

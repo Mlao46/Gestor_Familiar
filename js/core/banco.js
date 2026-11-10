@@ -58,7 +58,7 @@ export function claveDuplicado(m, ocurrencia = 0) {
   return `${m.fecha}|${m.importe.toFixed(2)}|${norm(m.desc)}|${ocurrencia}`;
 }
 
-export function parsearExtracto(filas) {
+export function parsearExtracto(filas, { tarjeta = null } = {}) {
   const ic = buscarCabecera(filas);
   if (ic < 0) throw new Error('No encuentro la fila de títulos (Fecha / Importe). ¿Es el extracto de movimientos?');
   const idx = mapearColumnas(filas[ic]);
@@ -99,18 +99,27 @@ export function parsearExtracto(filas) {
       fila: i + 1,
     });
   }
+  // Extracto de una tarjeta de crédito: las compras suelen venir en positivo
+  if (tarjeta) {
+    const positivos = movs.filter(m => m.importe > 0).length;
+    const invertir = positivos > movs.length / 2;
+    for (const m of movs) {
+      if (invertir) m.importe = -m.importe;
+      m.tarjeta = tarjeta; m.tipoOp = m.tipoOp || 'TARJETA CREDITO'; m.saldo = null; m.extractoTarjeta = true;
+    }
+  }
   // Ocurrencias para no confundir dos movimientos idénticos el mismo día
   const vistos = new Map();
   for (const m of movs) {
     const base = claveDuplicado(m, 0);
     const n = vistos.get(base) || 0;
     vistos.set(base, n + 1);
-    m.h = claveDuplicado(m, n);
+    m.h = (tarjeta ? `T${tarjeta}|` : '') + claveDuplicado(m, n);
   }
   // Comprobación con saldos: saldo(i) = saldo(i+1) + importe(i) si el orden es descendente
   let saldoOk = null;
   const conSaldo = movs.filter(m => m.saldo != null);
-  if (conSaldo.length > 1) {
+  if (conSaldo.length > 1 && !tarjeta) {
     let fallos = 0;
     const desc = conSaldo[0].fecha >= conSaldo[conSaldo.length - 1].fecha;
     for (let k = 0; k < conSaldo.length - 1; k++) {
