@@ -12,7 +12,7 @@ import { vistaAjustes } from './ajustes.js';
 import { mesesConDatos } from './core/calculos.js';
 import { hoyIso, mesDe } from './core/util.js';
 
-export const VERSION = '1.0.0';
+export const VERSION = '1.1.0';
 const repo = new Repositorio();
 const servicio = new Servicio(repo);
 const sync = new Sync(repo);
@@ -55,9 +55,9 @@ function pantallaBienvenida() {
     <img class="logo" src="iconos/icono.svg" alt="">
     <h1>Gestor Familiar</h1>
     <p>Tus cuentas de casa, privadas y cifradas. Subes el Excel del banco y la app hace el resto.</p>
-    <div class="opciones">
-      <button class="opcion" data-ir="crear"><strong>Empezar de cero</strong><span>Crea la contraseña familiar en este dispositivo.</span></button>
-      <button class="opcion" data-ir="unirse"><strong>Unirme a mi familia</strong><span>Alguien ya la usa y te ha invitado.</span></button>
+    <div class="opciones-grandes">
+      <button class="opcion-grande" data-ir="crear"><strong>Empezar de cero</strong><span>Crea la contraseña familiar en este dispositivo.</span></button>
+      <button class="opcion-grande" data-ir="unirse"><strong>Unirme a mi familia</strong><span>Alguien ya la usa y te ha invitado.</span></button>
     </div>
   </div></div>`;
   raiz().querySelector('[data-ir=crear]').onclick = pantallaCrear;
@@ -157,10 +157,10 @@ async function elegirProteccion(raw) {
   <div class="pantalla-central"><div class="caja">
     <h1>¿Cómo abrirás la app aquí?</h1>
     <p>Solo afecta a este dispositivo.</p>
-    <div class="opciones">
-      ${hayHuella ? '<button class="opcion" data-t="huella"><strong>Huella o Face ID</strong><span>Lo más cómodo y seguro.</span></button>' : ''}
-      <button class="opcion" data-t="pin"><strong>PIN</strong><span>Un número corto que eliges ahora.</span></button>
-      <button class="opcion" data-t="ninguno"><strong>Sin bloqueo</strong><span>Se abre directamente. Solo si nadie más usa este dispositivo.</span></button>
+    <div class="opciones-grandes">
+      ${hayHuella ? '<button class="opcion-grande" data-t="huella"><strong>Huella o Face ID</strong><span>Lo más cómodo y seguro.</span></button>' : ''}
+      <button class="opcion-grande" data-t="pin"><strong>PIN</strong><span>Un número corto que eliges ahora.</span></button>
+      <button class="opcion-grande" data-t="ninguno"><strong>Sin bloqueo</strong><span>Se abre directamente. Solo si nadie más usa este dispositivo.</span></button>
     </div>
   </div></div>`;
   raiz().querySelectorAll('[data-t]').forEach(b => b.onclick = async () => {
@@ -338,9 +338,14 @@ async function abrirCompartido() {
 }
 
 // ---------- Navegación ----------
-const PESTANAS = [
-  ['resumen', 'Resumen'], ['buzon', 'Buzón'], ['movs', 'Movimientos'], ['evolucion', 'Evolución'], ['ajustes', 'Ajustes'],
+const SECCIONES = [
+  ['resumen', 'Inicio', 'casa'], ['movs', 'Movimientos', 'lista'], ['buzon', 'Revisar', 'check'], ['evolucion', 'Evolución', 'evolucion'], ['ajustes', 'Ajustes', 'ajustes'],
 ];
+const ICONOS_NAV = {
+  casa: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7M6 10v10h12V10"/></svg>',
+  lista: ICONOS.movs, check: ICONOS.buzon, evolucion: ICONOS.evolucion, ajustes: ICONOS.ajustes,
+  mas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h.01M12 12h.01M19 12h.01"/></svg>',
+};
 
 function ruta() {
   const [r, q] = location.hash.replace(/^#\/?/, '').split('?');
@@ -354,11 +359,23 @@ function render() {
   const pendientes = servicio.movs.filter(m => m.estado === 'pendiente').length;
   let marco = $('#marco');
   if (!marco) {
-    raiz().innerHTML = `<div id="marco"><div id="vista"></div><nav class="barra" aria-label="Secciones"></nav></div>`;
+    raiz().innerHTML = `<div id="marco"><nav class="lateral" aria-label="Secciones"></nav><main class="principal" id="vista"></main><nav class="barra" aria-label="Secciones"></nav></div>`;
     marco = $('#marco');
   }
-  marco.querySelector('.barra').innerHTML = PESTANAS.map(([id, t]) =>
-    `<a href="#/${id}" class="${id === nombre || (nombre === 'importar' && id === 'buzon') ? 'activa' : ''}">${ICONOS[id]}<span>${t}</span>${id === 'buzon' && pendientes ? `<b class="insignia">${pendientes > 99 ? '99+' : pendientes}</b>` : ''}</a>`).join('');
+  const insignia = n => n ? `<b class="insignia">${n > 99 ? '99+' : n}</b>` : '';
+  const activa = id => id === nombre || (nombre === 'importar' && id === 'resumen' && false);
+  marco.querySelector('.lateral').innerHTML = `
+    <div class="marca"><img src="iconos/icono.svg" alt="">Gestor Familiar</div>
+    <a class="boton oscuro importar" href="#/importar">${ICONOS.subir} Importar extracto</a>
+    ${SECCIONES.map(([id, t, ic]) => `<a class="item ${activa(id) ? 'activa' : ''}" href="#/${id}" ${activa(id) ? 'aria-current="page"' : ''}>${ICONOS_NAV[ic]}<span>${t}</span>${id === 'buzon' ? insignia(pendientes) : ''}</a>`).join('')}
+    <div class="pie">Datos cifrados de extremo a extremo${sync.conectado && sync.familia ? ' · sincronizado' : ' · solo en este dispositivo'}</div>`;
+  const enMas = ['mas', 'evolucion', 'ajustes', 'importar'].includes(nombre);
+  marco.querySelector('.barra').innerHTML = `
+    <a href="#/resumen" class="${nombre === 'resumen' ? 'activa' : ''}">${ICONOS_NAV.casa}<span>Inicio</span></a>
+    <a href="#/movs" class="${nombre === 'movs' ? 'activa' : ''}">${ICONOS_NAV.lista}<span>Movimientos</span></a>
+    <a href="#/importar" aria-label="Importar extracto"><span class="boton-importar"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span></a>
+    <a href="#/buzon" class="${nombre === 'buzon' ? 'activa' : ''}">${ICONOS_NAV.check}<span>Revisar</span>${insignia(pendientes)}</a>
+    <a href="#/mas" class="${enMas ? 'activa' : ''}">${ICONOS_NAV.mas}<span>Más</span></a>`;
   const contenedor = $('#vista');
   const scroll = ultimaRuta === location.hash ? scrollY : 0;
   const v = nombre === 'ajustes' ? vistaAjustes : vistas[nombre] || vistas.resumen;

@@ -17,7 +17,11 @@ export function redondear(n) { return Math.round(n * 100) / 100; }
 
 export function euros(n, conSigno = false) {
   const v = Number(n) || 0;
-  const s = v.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  let s;
+  try { s = v.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }); }
+  catch { s = v.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  // Algunos navegadores no agrupan los miles de 4 cifras en español: se fuerza
+  s = s.replace(/^(-?\d)(\d{3}),/, '$1.$2,');
   return (conSigno && v > 0 ? '+' : '') + s + ' €';
 }
 

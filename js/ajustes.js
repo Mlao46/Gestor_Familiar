@@ -16,8 +16,9 @@ export function vistaAjustes(app, c, params) {
   const s = app.servicio;
   const sec = (id, titulo, html) => `<details class="seccion" data-id="${id}" ${abiertas.has(id) ? 'open' : ''}><summary>${titulo}</summary><div class="dentro">${html}</div></details>`;
   c.innerHTML = `
-  <header class="cabecera"><h1>Ajustes</h1><button class="boton mini" data-acc="bloquear">${ICONOS.candado} Bloquear</button></header>
-  <main class="contenido">
+  <div class="pagina estrecha">
+  <header class="cab"><h1>Ajustes</h1><div class="acciones"><button class="boton mini" data-acc="bloquear">${ICONOS.candado} Bloquear</button></div></header>
+  <div class="ajustes-grid">
     ${sec('tarjetas', 'Tarjetas', htmlTarjetas(app))}
     ${sec('categorias', 'Categorías y presupuestos', htmlCategorias(app))}
     ${sec('reglas', `Reglas de clasificación <span class="tenue">${s.reglas.length}</span>`, htmlReglas(app))}
@@ -25,8 +26,9 @@ export function vistaAjustes(app, c, params) {
     ${sec('familia', 'Familia y sincronización', htmlFamilia(app))}
     ${sec('seguridad', 'Seguridad', '<div id="seg">Cargando…</div>')}
     ${sec('datos', 'Copias de seguridad y datos', htmlDatos(app))}
-    <p class="tenue" style="text-align:center">Gestor Familiar ${VERSION} · datos cifrados de extremo a extremo</p>
-  </main>`;
+  </div>
+    <p class="tenue" style="text-align:center;margin-top:16px">Gestor Familiar ${VERSION} · datos cifrados de extremo a extremo</p>
+  </div>`;
   $$('details.seccion', c).forEach(d => d.ontoggle = () => { d.open ? abiertas.add(d.dataset.id) : abiertas.delete(d.dataset.id); });
   $('[data-acc=bloquear]', c).onclick = () => app.bloquear();
   enlazarTarjetas(app, c); enlazarCategorias(app, c); enlazarReglas(app, c); enlazarIA(app, c); enlazarFamilia(app, c); pintarSeguridad(app, c); enlazarDatos(app, c);
