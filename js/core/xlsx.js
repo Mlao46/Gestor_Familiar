@@ -63,6 +63,11 @@ function textoDe(xml) {
   return desescapar(out);
 }
 
+// Algunos bancos generan el XML con prefijos de espacio de nombres (<x:row>, <x:c>…): se quitan.
+function sinPrefijos(xml) {
+  return xml ? xml.replace(/<(\/?)[A-Za-z_][\w.-]*:(?=[A-Za-z_])/g, '<$1') : xml;
+}
+
 function colIndex(ref) {
   const letras = ref.match(/^[A-Z]+/)[0];
   let n = 0;
@@ -75,7 +80,7 @@ export async function leerXlsx(arrayBuffer) {
   // Hoja: la primera según workbook.xml + rels; si falla, sheet1.xml
   let rutaHoja = 'xl/worksheets/sheet1.xml';
   try {
-    const wb = await zip.leer('xl/workbook.xml');
+    const wb = sinPrefijos(await zip.leer('xl/workbook.xml'));
     const rels = await zip.leer('xl/_rels/workbook.xml.rels');
     const rid = wb.match(/<sheet\b[^>]*r:id="([^"]+)"/)?.[1];
     const target = rels && rid && rels.match(new RegExp(`<Relationship\\b[^>]*Id="${rid}"[^>]*Target="([^"]+)"`))?.[1]
@@ -84,22 +89,23 @@ export async function leerXlsx(arrayBuffer) {
   } catch { /* usar por defecto */ }
   if (!zip.nombres.includes(rutaHoja)) rutaHoja = zip.nombres.find(n => /^xl\/worksheets\/.*\.xml$/.test(n));
   const compartidas = [];
-  const ss = await zip.leer('xl/sharedStrings.xml');
+  const ss = sinPrefijos(await zip.leer('xl/sharedStrings.xml'));
   if (ss) {
-    const re = /<si>([\s\S]*?)<\/si>/g;
+    const re = /<si\b[^>]*>([\s\S]*?)<\/si>/g;
     let m;
     while ((m = re.exec(ss))) compartidas.push(textoDe(m[1]));
   }
-  const hoja = await zip.leer(rutaHoja);
+  const hoja = sinPrefijos(await zip.leer(rutaHoja));
   const filas = [];
-  const reFila = /<row\b([^>]*)>([\s\S]*?)<\/row>/g;
+  // Filas vacías pueden venir autocerradas: <row r="1" />
+  const reFila = /<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g;
   let mf;
   while ((mf = reFila.exec(hoja))) {
     const r = Number(mf[1].match(/\br="(\d+)"/)?.[1] ?? filas.length + 1) - 1;
     const fila = [];
     const reCelda = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
     let mc;
-    while ((mc = reCelda.exec(mf[2]))) {
+    while ((mc = reCelda.exec(mf[2] || ''))) {
       const attrs = mc[1];
       const ref = attrs.match(/\br="([A-Z]+\d+)"/)?.[1];
       const t = attrs.match(/\bt="(\w+)"/)?.[1];

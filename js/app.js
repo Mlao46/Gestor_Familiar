@@ -12,7 +12,7 @@ import { vistaAjustes } from './ajustes.js';
 import { mesesConDatos } from './core/calculos.js';
 import { hoyIso, mesDe } from './core/util.js';
 
-export const VERSION = '1.2.0';
+export const VERSION = '1.2.1';
 const repo = new Repositorio();
 const servicio = new Servicio(repo);
 const sync = new Sync(repo);

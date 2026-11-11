@@ -116,18 +116,43 @@ export function parsearExtracto(filas, { tarjeta = null } = {}) {
     vistos.set(base, n + 1);
     m.h = (tarjeta ? `T${tarjeta}|` : '') + claveDuplicado(m, n);
   }
-  // Comprobación con saldos: saldo(i) = saldo(i+1) + importe(i) si el orden es descendente
+  // Comprobación con saldos. El banco no siempre ordena los movimientos de un mismo día como
+  // su saldo, así que se comprueba día a día: cada día debe poder encadenarse desde el saldo
+  // final del día anterior en algún orden.
   let saldoOk = null;
   const conSaldo = movs.filter(m => m.saldo != null);
   if (conSaldo.length > 1 && !tarjeta) {
     let fallos = 0;
-    const desc = conSaldo[0].fecha >= conSaldo[conSaldo.length - 1].fecha;
-    for (let k = 0; k < conSaldo.length - 1; k++) {
-      const [a, b] = desc ? [conSaldo[k], conSaldo[k + 1]] : [conSaldo[k + 1], conSaldo[k]];
-      if (Math.abs(redondear(b.saldo + a.importe) - a.saldo) > 0.011) fallos++;
+    const dias = new Map();
+    for (const m of conSaldo) { if (!dias.has(m.fecha)) dias.set(m.fecha, []); dias.get(m.fecha).push(m); }
+    const fechas = [...dias.keys()].sort();
+    const encadenar = (inicio, grupo) => {
+      let actual = inicio; const quedan = [...grupo];
+      while (quedan.length) {
+        const i = quedan.findIndex(m => Math.abs(redondear(actual + m.importe) - m.saldo) <= 0.011);
+        if (i < 0) return null;
+        actual = quedan[i].saldo; quedan.splice(i, 1);
+      }
+      return actual;
+    };
+    let previo = null;
+    for (const f of fechas) {
+      const grupo = dias.get(f);
+      let fin = null;
+      if (previo == null) {
+        for (const m of grupo) { fin = encadenar(redondear(m.saldo - m.importe), grupo); if (fin != null) break; }
+      } else fin = encadenar(previo, grupo);
+      if (fin == null) {
+        fallos++;
+        // Seguir desde el saldo que cuadra con el total del día
+        const total = grupo.reduce((a, m) => a + m.importe, 0);
+        fin = grupo.find(m => previo != null && Math.abs(redondear(previo + total) - m.saldo) <= 0.011)?.saldo
+          ?? (dias.get(f)[0].saldo);
+      }
+      previo = fin;
     }
     saldoOk = fallos === 0;
-    if (fallos) avisos.push(`${fallos} saltos de saldo: puede que el extracto esté incompleto o que falten movimientos`);
+    if (fallos) avisos.push(`${fallos} día(s) donde el saldo no cuadra: puede que el extracto esté incompleto o que falten movimientos`);
   }
   const fechas = movs.map(m => m.fecha).sort();
   const saldoFinal = conSaldo.length ? conSaldo.reduce((a, b) => (b.fecha > a.fecha ? b : a)).saldo : null;
